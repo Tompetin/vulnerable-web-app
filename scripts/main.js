@@ -1,30 +1,54 @@
+// Function to sanitize input and escape harmful characters
+function sanitizeInput(input) {
+    const div = document.createElement('div');
+    div.textContent = input; // Use textContent to safely set the input as text
+    return div.innerHTML; // Return the escaped version of the input
+}
+
 const comments = [];
 
-// XSS Vulnerability: Handle comments
+// Securely handle comments to prevent XSS
 document.getElementById('commentForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
+
     const commentInput = document.getElementById('commentInput').value;
-    
-    // Debugging: log the input to the console
-    console.log("Comment submitted:", commentInput);
 
-    // Add the comment directly to the page (unsafe)
-    document.getElementById('commentsContainer').innerHTML += `<div>${commentInput}</div>`;
+    // Sanitize the input
+    const sanitizedComment = sanitizeInput(commentInput);
 
-    // Debugging: log the updated comments container
-    console.log("Updated comments container:", document.getElementById('commentsContainer').innerHTML);
+    // Add the sanitized comment to the page
+    document.getElementById('commentsContainer').innerHTML += `<div>${sanitizedComment}</div>`;
 
-    // Clear input after submission
+    // Clear the input field after submission
     document.getElementById('commentInput').value = '';
 });
 
+const loginAttempts = {}; // Store login attempts per user/IP
+const MAX_ATTEMPTS = 10; // Maximum allowed attempts
+const LOCKOUT_TIME = 30000; // 30 seconds lockout period
 
-// Login Vulnerability: No hashing or brute force prevention
-document.getElementById('loginForm').addEventListener('submit', (e) => {
-    e.preventDefault();  // Prevent default form submission
+// Login Functionality with Rate Limiting
+document.getElementById('loginForm')?.addEventListener('submit', (e) => {
+    e.preventDefault(); // Prevent default form submission
 
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
+
+    // Get the current timestamp
+    const now = Date.now();
+
+    // Initialize login attempts for the user
+    if (!loginAttempts[username]) {
+        loginAttempts[username] = { count: 0, lockUntil: null };
+    }
+
+    // Check if the user is locked out
+    if (loginAttempts[username].lockUntil && now < loginAttempts[username].lockUntil) {
+        const timeRemaining = Math.ceil((loginAttempts[username].lockUntil - now) / 1000);
+        document.getElementById('loginMessage').textContent = 
+            `Too many unsuccessful attempts. Please try again in ${timeRemaining} seconds.`;
+        return;
+    }
 
     const formData = new FormData();
     formData.append('username', username);
@@ -35,16 +59,33 @@ document.getElementById('loginForm').addEventListener('submit', (e) => {
         method: 'POST',
         body: formData
     })
-    .then(response => response.text())  // Get the response text (either success or failure)
-    .then(data => {
-        // Show the response message
-        document.getElementById('loginMessage').textContent = data;
-    })
-    .catch(error => console.error('Error:', error));  // Handle errors
+        .then(response => response.text()) // Get the response text (either success or failure)
+        .then(data => {
+            if (data === "Login successful!") {
+                // Reset login attempts on successful login
+                loginAttempts[username] = { count: 0, lockUntil: null };
+                document.getElementById('loginMessage').textContent = `Welcome, ${username}!`;
+            } else {
+                // Increment the login attempt count
+                loginAttempts[username].count += 1;
+
+                if (loginAttempts[username].count >= MAX_ATTEMPTS) {
+                    // Lock the user out for the specified lockout time
+                    loginAttempts[username].lockUntil = now + LOCKOUT_TIME;
+                    document.getElementById('loginMessage').textContent = 
+                        `Too many unsuccessful attempts. Please try again in ${LOCKOUT_TIME / 1000} seconds.`;
+                } else {
+                    const attemptsLeft = MAX_ATTEMPTS - loginAttempts[username].count;
+                    document.getElementById('loginMessage').textContent = 
+                        `Invalid credentials. You have ${attemptsLeft} attempts remaining.`;
+                }
+            }
+        })
+        .catch(error => console.error('Error:', error)); // Handle errors
 });
 
 
-// CSRF Vulnerability: Update email without validation
+// CSRF Functionality
 document.getElementById('csrfForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value;
