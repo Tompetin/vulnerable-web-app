@@ -1,9 +1,21 @@
 // Function to sanitize input and escape harmful characters
 function sanitizeInput(input) {
+    // Escape basic HTML characters to prevent XSS
     const div = document.createElement('div');
     div.textContent = input; // Use textContent to safely set the input as text
-    return div.innerHTML; // Return the escaped version of the input
+    let sanitizedInput = div.innerHTML; // Return the escaped version of the input
+
+    // Regular expression to block common SQL injection patterns
+    const sqlInjectionPattern = /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|TRUNCATE|--|\bOR\b|\bAND\b|=|;|')\b)/i;
+    
+    // Check for SQL injection patterns and sanitize
+    if (sqlInjectionPattern.test(sanitizedInput)) {
+        throw new Error('Potential SQL Injection detected in the input!');
+    }
+
+    return sanitizedInput;
 }
+
 
 const comments = [];
 
@@ -34,6 +46,9 @@ document.getElementById('loginForm')?.addEventListener('submit', (e) => {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
 
+    const sanitizedUsername = sanitizeInput(username);
+    const sanitizedPassword = sanitizeInput(password);
+    
     // Get the current timestamp
     const now = Date.now();
 
@@ -88,12 +103,49 @@ document.getElementById('loginForm')?.addEventListener('submit', (e) => {
 // CSRF Functionality
 document.getElementById('csrfForm')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const email = document.getElementById('email').value;
 
-    // Assume user is "admin" for simplicity
-    const admin = users.find((u) => u.username === 'admin');
-    if (admin) {
-        admin.email = email;
-        document.getElementById('csrfMessage').textContent = `Email updated to: ${email}`;
+    const email = document.getElementById('email').value;
+    const csrfToken = localStorage.getItem('csrfToken'); // Retrieve CSRF token
+
+    if (!csrfToken) {
+        document.getElementById('csrfMessage').textContent = 'CSRF token not found!';
+        return;
     }
+
+    const formData = new FormData();
+    formData.append('email', email);
+    formData.append('csrfToken', csrfToken);
+
+    // Send the email and CSRF token to the server
+    fetch('backend/update_email.php', {
+        method: 'POST',
+        body: formData,
+    })
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('csrfMessage').textContent = data; // Display server response
+        })
+        .catch(error => console.error('Error:', error));
+});
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Fetch the CSRF token from the server
+    fetch('backend/get_csrf_token.php')
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json(); // Parse the JSON response
+    })
+    .then(data => {
+        if (data.csrfToken) {
+           localStorage.setItem('csrfToken', data.csrfToken);
+        } else {
+            console.error('CSRF token not found in server response');
+        }
+        const csrfToken = data.csrfToken; // Extract the CSRF token
+        document.getElementById('csrfToken').value = csrfToken; // Add it to the hidden input field
+    })
+    .catch(error => console.error('Error fetching CSRF token:', error));
 });

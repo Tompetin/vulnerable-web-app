@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
     <link rel="stylesheet" href="styles/style.css">
-    <script src="scripts/main.js" defer></script>
+    <script src="scripts/main.js?v=<?= time() ?>" defer></script>
 </head>
 <body>
     <h1>Login Page</h1>
+    <input type="hidden" id="csrfToken" name="csrfToken"> <!-- Hidden CSRF token -->
     <form id="loginForm" method="POST">
         <label for="username">Username:</label>
         <input type="text" id="username" name="username" required><br><br>

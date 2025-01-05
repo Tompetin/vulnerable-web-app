@@ -1,15 +1,34 @@
 <?php
+session_start();
 include 'db_connect.php';
 
-$email = $_POST['email'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $csrfToken = $_POST['csrfToken'];
+    $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
 
-// Assume admin user is always the target
-$sql = "UPDATE users SET email='$email' WHERE username='admin'";
-if ($conn->query($sql) === TRUE) {
-    echo "Email updated!";
-} else {
-    echo "Error: " . $conn->error;
+    // Validate CSRF token
+    if (!isset($_SESSION['csrf_token']) || $csrfToken !== $_SESSION['csrf_token']) {
+        echo 'Invalid CSRF token.';
+        exit;
+    }
+
+    // Validate email
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        echo 'Invalid email format.';
+        exit;
+    }
+
+    // Update email for the logged-in user (assume 'admin' for simplicity)
+    $stmt = $conn->prepare("UPDATE users SET email = ? WHERE username = ?");
+    $stmt->bind_param("ss", $email, $username);
+
+    $username = 'admin'; // Replace with session user or similar authentication mechanism
+    if ($stmt->execute()) {
+        echo 'Email updated successfully!';
+    } else {
+        echo 'Failed to update email.';
+    }
+    $stmt->close();
+    $conn->close();
 }
-
-$conn->close();
 ?>
